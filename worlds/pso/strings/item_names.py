@@ -72,3 +72,21 @@ class Item:
     # Wands
     WAND = "Wand"
     STAFF = "Staff"
+
+    # Frames / Armor
+    FRAME = "Frame"
+    ARMOR = "Armor"
+    PSYARMOR = "Psy Armor"
+    GIGAFRAME = "Giga Frame"
+    SOULFRAME = "Soul Frame"
+    CROSSARMOR = "Cross Armor"
+    SOLIDFRAME = "Solid Frame"
+
+    # Barriers / Shields
+    BARRIER = "Barrier"
+    SHIELD = "Shield"
+    CORESHIELD = "Core Shield"
+    GIGASHIELD = "Giga Shield"
+    SOULBARRIER = "Soul Barrier"
+    HARDSHIELD = "Hard Shield"
+    BRAVEBARRIER = "Brave Barrier"

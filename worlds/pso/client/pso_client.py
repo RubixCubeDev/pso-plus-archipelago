@@ -5,17 +5,15 @@ import traceback
 
 from typing import TYPE_CHECKING, Any
 from copy import deepcopy
-
-from attr import attributes
+from random import randint, randrange, sample
 
 import Utils
 from CommonClient import ClientCommandProcessor, CommonContext, get_base_parser, gui_enabled, logger, server_loop
 from NetUtils import ClientStatus
-from worlds.pso import PSOWorld
 from worlds.pso.locations import LOCATION_TABLE
 from worlds.pso.patcher.pso_patcher import PSO_PLAYER_NAME_BYTE_LENGTH
 
-from ..items import ITEM_TABLE, ITEM_ID_TO_NAME, PSOItemType
+from ..items import ITEM_TABLE, ITEM_ID_TO_NAME, PSOItemType, PSOItemData
 
 import dolphin_memory_engine
 
@@ -31,7 +29,8 @@ CURRENT_HEALTH_ADDRESS = 0x80DA65CC
 
 # These addresses appear to be unused throughout the game
 # Use it to track the index of the last item the game knows it has received for the player
-LAST_RECEIVED_ITEM_ADDRESS = 0x80C5CBA0
+LAST_RECEIVED_ITEM_ADDRESS = 0x8000AF33
+# Kayak gave the value of 0x8000AF90-93 but that should resolve to the above value, since math... right?
 
 BANK_EMPTY_SLOT: bytes = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00'
 BANK_FIRST_SLOT = 0x80FD95D0
@@ -201,7 +200,8 @@ def check_in_bank() -> bool:
     """
     Returns True if the player is currently interacting with the bank, which can prevent receiving items
     """
-    return
+    # TODO: Actually implement this, once we have a memory address
+    return False
 
 
 def check_ruins_door(ctx: PSOContext) -> None:
@@ -217,8 +217,10 @@ def check_ruins_door(ctx: PSOContext) -> None:
     # good insurance for the time being
     if len(found_pillars) == 3:
         write_bit(RUINS_DOOR_ADDRESS, 0, 1)
+        logger.info("Ruins door is unlocked")
     else:
         write_bit(RUINS_DOOR_ADDRESS, 0, 0)
+        logger.info("Re-locking Ruins door")
 
     return
 
@@ -228,15 +230,88 @@ def check_pillars(ctx: PSOContext) -> None:
     If the player doesn't have all 3 pillar items received, re-lock the pillar door, as the game
     will unlock it automatically when the 3rd one is triggered.
     """
-    checked_locations = ctx.locations_checked
+    # Read from a combined set of the serverside and local checked locations
+    checked_locations = ctx.checked_locations | ctx.locations_checked
     # TODO: Decide if we want to hard code the pillars
     pillar_location_codes = {20, 21, 22}
-    if not pillar_location_codes.issubset(checked_locations):
-        # All the pillars haven't been activated by the player; no need to check anything else
-        return
+    # TODO: Figure out why ctx.locations_checked isn't returning the expected values
 
-    check_ruins_door(ctx)
+    # If the all 3 location codes are in the checked locations, check if we need to lock the door
+    if pillar_location_codes.issubset(checked_locations):
+        check_ruins_door(ctx)
+
+    # All the pillars haven't been activated by the player; no need to check anything else
     return
+
+# We have one instance of 22 (Arrest) not generating
+GOOD_TEKKER_OPTIONS = [4, 8, 11, 12, 13, 14, 18, 22, 26, 30, 34, 38, 40]
+
+def get_weapon_bytes(pso_item: PSOItemData) -> bytes:
+    """
+    Make the byte representation for a weapon to be placed directly in memory
+
+    :param pso_item: the data for the PSOItem to be added
+    """
+    # SABER_BYTES = b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
+    # SAYBR_BYTES = b'\x00\x01\x00\x00\x00\x00\x01\x14\x03\x28\x05\x46\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
+    #                 Item    Rarity  Tekker  Attr    Attr    Attr    TrailingBytes
+    #                     Weapon  Grind   Present Amount  Amount  Amount
+
+    # Define this as a Weapon
+    weapon_bytes = b'\x00'
+    # Set the type of Weapon (Saber, Handgun, Cane, etc.)
+    weapon_bytes += pso_item.ram_data.byte_data
+    # Set the grind to the max possible grind
+    weapon_bytes += int.to_bytes(pso_item.stat_1, byteorder='big')
+    # Set a random Tekker attribute on it (specifically, the highest tier of each)
+    tekker_byte = GOOD_TEKKER_OPTIONS[randint(0, len(GOOD_TEKKER_OPTIONS) - 1)]
+    weapon_bytes += int.to_bytes(tekker_byte, byteorder='big')
+    # Set the Present byte to nothing, so the weapon shows up normally
+    weapon_bytes += b'\x00'
+    # Pick 2 random % attributes and Hit; set them to a random but high %, because why not
+    attributes = sample(ATTRIBUTE_BYTES, k=2)
+    attributes.append(b'\x05')
+
+    for attribute in attributes:
+        weapon_bytes += attribute
+        weapon_bytes += int.to_bytes(70 + randrange(0, 30, 5), byteorder='big')
+
+    # Throw the rest of the bytes on that we need (Not entirely sure what they do, but modifying them hasn't done much!)
+    weapon_bytes += b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
+
+    return weapon_bytes
+
+
+def get_armor_bytes(pso_item: PSOItemData) -> bytes:
+    """
+    Make the byte representation for a piece of armor to be placed directly in memory
+    For the sake of this item creation, armor includes Frames, Armor, Barriers, and Shields
+
+    :param pso_item: the data for the PSOItem to be added
+    """
+    # FRAME_BYTES = b'\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
+    #                 Item    Rarity  Flags?  DFP     EVP     Kill Count?     TrailingBytes?
+    #                     Fra/Bar Null    Slots   DFP     EVP
+
+    # Define this as a piece of Armor
+    armor_bytes = b'\x01'
+    # Set the two-byte chunk that determines what kind of frame / barrier this is
+    armor_bytes += pso_item.ram_data.byte_data
+    # Set two null bytes
+    armor_bytes += b'\x00\x00'
+    # Shields have an item code starting at 200, and they don't need armor slots
+    if pso_item.code >= 200:
+        armor_bytes += b'\x00'
+    else:
+        armor_bytes += b'\x04'
+    # Set the DFP (stat_1) and EVP (stat_2) which use little-endian, for some reason
+    for stat in [pso_item.stat_1, pso_item.stat_2]:
+        armor_bytes += int.to_bytes(stat, 2, byteorder='little')
+
+    # Throw the rest of the bytes on that we need (Not entirely sure what they do, but modifying them hasn't done much!)
+    armor_bytes += b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
+
+    return armor_bytes
 
 
 def write_to_bank(ctx: PSOContext, item_name: str) -> bool:
@@ -247,86 +322,38 @@ def write_to_bank(ctx: PSOContext, item_name: str) -> bool:
     :param item_name: the name of the item being given
     :return: whether the item was written successfully (as far as we know)
     """
-    # bank_slot_bytes = dolphin_memory_engine.read_bytes(BANK_LAST_SLOT, 0x18)
-    # logger.critical(f"Saber is {dolphin_memory_engine.read_bytes(0x80FD95D0, 18)}")
-    # logger.critical(f"Or potentially is {dolphin_memory_engine.read_bytes(0x80FD95D0, 0x18)}")
-    # logger.critical(f"Second empty slot is {dolphin_memory_engine.read_bytes(0x80FD95E8, 18)}")
-    # logger.critical(f"Or potentially is {dolphin_memory_engine.read_bytes(0x80FD95E8, 0x18)}")
-
-    # Check to make sure all the bytes are zero in the last slot, to ensure it's empty
-    # There might be a better way to do this
-    # for byte in bank_slot_bytes:
-    #     if byte not in (0, 255):
-    #         logger.error(f"Byte was {byte}")
-    # if bank_slot_bytes != BANK_EMPTY_SLOT:
-    #     # TODO: Have another option for handling the case where the bank is full
-    #     logger.error(f"Attempted to write {item_name} to bank, but the bank is full. Current bytes: {bank_slot_bytes}")
-    #     return True
-
-    SABER_BYTES = b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
-    LAVIS_BYTES = b'\x00\x01\x00\x00\x00\x00\x01\x14\x03\x28\x05\x46\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
-    #               item    tier    tekker  Attr    ""      ""
-    #                   type    grind    ???     Amount ""      ""
-    #3E 4C CC CD
-
     pso_item = ITEM_TABLE[item_name]
 
     # Make an empty container to put our bytes into
     item_bytes = b''
 
-    if pso_item.type == PSOItemType.WEAPON:
-        # Item slots in the bank are 18 bytes long, and 24 bytes away from the next item
-        # We find how much padding we need to add to push the item into position
-        # for _ in range(len(item_bytes), 18):
-        #     item_bytes.append(0)
+    bank_current_count = dolphin_memory_engine.read_byte(BANK_ITEM_COUNT)
 
-        # dolphin_memory_engine.write_bytes(BANK_LAST_SLOT, item_bytes)
-        # dolphin_memory_engine.write_bytes(0x80FD95D0, item_bytes)
-        # Retrieve the current number of items in the player's bank
-        bank_current_count = dolphin_memory_engine.read_byte(BANK_ITEM_COUNT)
+    if bank_current_count >= 200:
+        logger.error(f"Attempted to write {item_name} to the bank, but the bank is full.")
+        return False
 
-        if bank_current_count >= 200:
-            logger.error(f"Attempted to write {item_name} to the bank, but the bank is full.")
+    match pso_item.type:
+        case PSOItemType.WEAPON:
+            item_bytes = get_weapon_bytes(pso_item)
+        case PSOItemType.ARMOR:
+            item_bytes = get_armor_bytes(pso_item)
+        case _:
+            logger.error(f"Attempted to write {item_name} to the bank, but we don't support {pso_item.type}.")
             return False
 
-        # TODO: Extract this to a Make Bytes function
-        # Weapons start with \x00 so we add that first
-        item_bytes += b'\x00'
-        item_bytes += pso_item.ram_data.byte_data
-        item_bytes += int.to_bytes(pso_item.max_grind, byteorder='big')
-        # No Tekker or present for now
-        item_bytes += b'\x00\x00'
-        logger.info(f"Bytes: {item_bytes}")
-        # Pick 2 random attributes and then Hit and set them to 90%, because why not
-        # TODO: Figure out how to get random items in the client
-        # attributes = ctx. .random.choices(ATTRIBUTE_BYTES, k=2)
-        attributes = [int.to_bytes(int.from_bytes(pso_item.ram_data.byte_data[1:], byteorder='big') + 1, byteorder='big'),
-                      int.to_bytes(int.from_bytes(pso_item.ram_data.byte_data[1:], byteorder='big') + 2, byteorder='big')]
-        if attributes[1:] == b'\x05':
-            attributes.insert(0, b'\x01')
-        else:
-            attributes.append(b'\x05')
-        for attribute in attributes:
-            item_bytes += attribute
-            item_bytes += int.to_bytes(70, byteorder='big')
-            logger.info(f"Bytes: {item_bytes}")
-
-        # Throw the rest of the bytes on that we need
-        item_bytes += b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01'
-
+    if item_bytes != b'':
         # Every bank is 24 bytes (0x18) apart
         # Get the relevant memory space based on the number of items we have to skip over
         next_open_slot = BANK_FIRST_SLOT + (0x18 * bank_current_count)
         dolphin_memory_engine.write_bytes(next_open_slot, item_bytes)
-
-        # Increment the bank counter
+        # Increment the bank counter, or the bank won't know there's a new item
         dolphin_memory_engine.write_byte(BANK_ITEM_COUNT, bank_current_count + 1 )
-
         logger.info(f"Wrote {item_name} to bank")
         logger.info(f"Bytes: {item_bytes}")
         return True
 
-    # If we somehow don't handle all our cases properly, we should know that
+    # If we somehow didn't get bytes to write an item
     logger.error(f"Attempted to write {item_name} to the bank, but something unexpected occurred.")
     return False
 
@@ -339,13 +366,16 @@ def _give_item(ctx: PSOContext, item_name: str) -> bool:
     :param item_name: the name of the item being given
     :return: whether the item was successfully given
     """
-    # TODO: Determine if this can get stuck
-    if not check_ingame():
+    # The player can only receive items if they're in game and not talking to the banker
+    if not check_ingame() or check_in_bank():
         return False
 
     item = ITEM_TABLE[item_name]
     match item.type:
         case PSOItemType.AREA:
+            # TODO: Get rid of this workaround and figure out why Unlock Forest 1 keeps getting added to the pool
+            if item_name == Item.UNLOCK_FOREST_1:
+                return True
             if not item.ram_data.bit_position:
                 # All of our AREAs should have RAM data in the current implementation
                 logger.error(f"Item {item_name} is classified as an AREA but has no ram data")
@@ -375,6 +405,9 @@ def _give_item(ctx: PSOContext, item_name: str) -> bool:
             return True
 
         case PSOItemType.WEAPON:
+            return write_to_bank(ctx, item_name)
+
+        case PSOItemType.ARMOR:
             return write_to_bank(ctx, item_name)
 
         case _:

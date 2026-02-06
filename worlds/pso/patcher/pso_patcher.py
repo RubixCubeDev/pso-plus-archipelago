@@ -67,7 +67,6 @@ class PSOPatcher:
 
         :param output_data: json-formatted data from reading the patch file
         """
-
         ap_world_version = output_data[AP_WORLD_VERSION_NAME]
         if ap_world_version != CLIENT_VERSION:
             raise Utils.VersionException("Error! Server was generated with a different MMXCM Seed!")

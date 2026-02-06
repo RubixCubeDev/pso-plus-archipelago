@@ -66,8 +66,8 @@ LOCATION_TABLE: dict[str, PSOLocationData] = {
     "Defeat Dragon": PSOLocationData(
         8, RegionName.DRAGON, PSOLocationType.ITEM, PSORamData(0x805127FA, 0)
     ),
-    "Unlock Caves": PSOLocationData(
-        9, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FB, 7)
+    "Enter Caves 1": PSOLocationData(
+        9, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FB, 1)
     ),
     "Scientist 1 - After Dragon": PSOLocationData(
         10, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FB, 6)
@@ -75,13 +75,13 @@ LOCATION_TABLE: dict[str, PSOLocationData] = {
     "Defeat De Rol Le": PSOLocationData(
         11, RegionName.DE_ROL_LE, PSOLocationType.ITEM, PSORamData(0x805127FC, 7)
     ),
-    "Unlock Mines": PSOLocationData(
-        12, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FC, 6)
+    "Enter Mines 1": PSOLocationData(
+        12, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FD, 7)
     ),
     "Defeat Vol Opt": PSOLocationData(
         13, RegionName.VOL_OPT, PSOLocationType.ITEM, PSORamData(0x805127FD, 5)
     ),
-    "Unlock Ruins": PSOLocationData(
+    "Enter Ruins 1": PSOLocationData(
         14, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FE, 7)
     ),
 
