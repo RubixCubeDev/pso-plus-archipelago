@@ -9,7 +9,7 @@ from hashlib import md5
 from typing import Any
 import json, logging, sys, os, zipfile, tempfile
 
-GAME_NAME = "Phantasy Star Online Episode I&II Plus"
+GAME_NAME = "Phantasy Star Online Episode I & II Plus"
 
 PSO_MD5 = 0x36a7f90ad904975b745df9294a06baea
 
