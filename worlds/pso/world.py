@@ -43,7 +43,7 @@ components.append(
 # It is recommended that you read these in that specific order, then come back to the world class.
 class PSOWorld(World):
     """
-    Phantasy Star Online Episodes I & II Plus is a hack-and-slash RPG produced by SEGA and Sonic Team for the
+    Phantasy Star Online Episode I & II Plus is a hack-and-slash RPG produced by SEGA and Sonic Team for the
     Nintendo GameCube and Microsoft Xbox. Players make their way through Ragol in search of what happened to Red
     Ring Rico and the cause of a mysterious explosion that destroyed much of the earlier colony ship, Pioneer I.
     """

@@ -53,9 +53,9 @@ DEBUG_SLOT_OVERRIDE = True
 
 class PSOCommandProcessor(ClientCommandProcessor):
     """
-    Command Processor for Phantasy Star Online Episode I&II Plus client commands
+    Command Processor for Phantasy Star Online Episode I & II Plus client commands
 
-    Handles commands specific to Phantasy Star Online Episode I&II Plus
+    Handles commands specific to Phantasy Star Online Episode I & II Plus
     """
 
     def __init__(self, ctx: CommonContext):
@@ -76,7 +76,7 @@ class PSOCommandProcessor(ClientCommandProcessor):
 
 class PSOContext(CommonContext):
     """
-    The context object for Phantasy Star Online Episode I&II Plus from CommonClient
+    The context object for Phantasy Star Online Episode I & II Plus from CommonClient
 
     Manages all interactions with the Dolphin emulator and the Archipelago server for PSO
     """
@@ -152,7 +152,7 @@ class PSOContext(CommonContext):
         :return: The client's GUI.
         """
         ui = super().make_gui()
-        ui.base_title = "Archipelago Phantasy Star Online Episode I&II Plus Client"
+        ui.base_title = "Archipelago Phantasy Star Online Episode I & II Plus Client"
         return ui
 
 async def check_death(ctx: PSOContext) -> None:
@@ -592,7 +592,7 @@ def async_main(connect: str | None = None, password: str | None = None) -> None:
     colorama.deinit()
 
 def sync_main(*launch_args: str):
-    Utils.init_logging("Phantasy Star Online Episode I&II Plus Client")
+    Utils.init_logging("Phantasy Star Online Episode I & II Plus Client")
 
     parser = get_base_parser()
     parser.add_argument('appso_file', default="", type=str, nargs="?", help='Path to an APPSO file')

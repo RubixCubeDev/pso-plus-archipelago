@@ -2,10 +2,10 @@ import settings
 
 class PSOIsoFile(settings.UserFilePath):
     """
-    Locate the user's Phantasy Star Online Episode 1 and 2 Plus ISO file.
+    Locate the user's Phantasy Star Online Episode I & II Plus ISO file.
     """
 
-    description = "Phantasy Star Online Episode 1 & 2 Plus ISO"
+    description = "Phantasy Star Online Episode I & II Plus ISO"
     copy_to = None
 
 
