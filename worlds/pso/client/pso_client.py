@@ -12,6 +12,7 @@ from CommonClient import ClientCommandProcessor, CommonContext, get_base_parser,
 from NetUtils import ClientStatus
 from worlds.pso.locations import LOCATION_TABLE
 from worlds.pso.patcher.pso_patcher import PSO_PLAYER_NAME_BYTE_LENGTH
+from worlds.stardew_valley.stardew_rule import false_
 
 from ..items import ITEM_TABLE, ITEM_ID_TO_NAME, PSOItemType, PSOItemData
 
@@ -29,8 +30,12 @@ CURRENT_HEALTH_ADDRESS = 0x80DA65CC
 
 # These addresses appear to be unused throughout the game
 # Use it to track the index of the last item the game knows it has received for the player
-LAST_RECEIVED_ITEM_ADDRESS = 0x8000AF33
+LAST_RECEIVED_ITEM_ADDRESS = 0x8000AF90
 # Kayak gave the value of 0x8000AF90-93 but that should resolve to the above value, since math... right?
+
+# The address for an 8-bit array of booleans used to track various things
+# [0: giving_item, 1: ...]
+VALUE_TRACKING_ADDRESSES = 0x8000AF92
 
 BANK_EMPTY_SLOT: bytes = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00'
 BANK_FIRST_SLOT = 0x80FD95D0
@@ -50,6 +55,9 @@ RUINS_DOOR_ADDRESS = 0x805127FD
 PILLAR_NAMES = {Item.FOREST_PILLAR, Item.CAVES_PILLAR, Item.MINES_PILLAR}
 
 DEBUG_SLOT_OVERRIDE = True
+
+TRACKING_ADDRESSES = [0x801042A8, 0x801042A4, 0x8010E34C]
+TRACKING_DICT = dict.fromkeys(TRACKING_ADDRESSES, b'')
 
 class PSOCommandProcessor(ClientCommandProcessor):
     """
@@ -203,6 +211,25 @@ def check_in_bank() -> bool:
     # TODO: Actually implement this, once we have a memory address
     return False
 
+# Built a lock out in case we hit issues with giving items asynchronously however I don't think
+# this will actually be an issue in the real game. Leaving it as an example of using the tracking
+# array and in case we actually do need a lock at some point in early dev
+def check_giving_item() -> bool:
+    """
+    Returns True if the client is currently trying to give the player an item
+    This serves as a lock to prevent multiple, concurrent calls to give_item that would
+    cause duplicate items to be given
+    """
+
+    return check_bit(VALUE_TRACKING_ADDRESSES, bit_position=0)
+
+def set_giving_item(giving_item: bool) -> None:
+    """
+    Changes the bit in the value tracking array to for if the player is currently being given
+    an item or not
+    """
+
+    write_bit(VALUE_TRACKING_ADDRESSES, bit_position=0, value=int(giving_item))
 
 def check_ruins_door(ctx: PSOContext) -> None:
     """
@@ -370,6 +397,9 @@ def _give_item(ctx: PSOContext, item_name: str) -> bool:
     if not check_ingame() or check_in_bank():
         return False
 
+    # TODO: Check if it messes up the game to receive an item while the player is in the bank inventory
+    # This could happen during a real archipelago and would be a problem
+
     item = ITEM_TABLE[item_name]
     match item.type:
         case PSOItemType.AREA:
@@ -425,7 +455,6 @@ async def give_items(ctx: PSOContext) -> None:
         return
 
     # Read the index of the last item the game knows we received
-    # Use this value to compare with w
     next_item_idx = read_short(LAST_RECEIVED_ITEM_ADDRESS) + 1
 
     # Fetch the list of received items
@@ -441,8 +470,7 @@ async def give_items(ctx: PSOContext) -> None:
             await asyncio.sleep(0.01)
 
         # Update the last received item index to the item that was just sent
-        write_short(LAST_RECEIVED_ITEM_ADDRESS, next_item_idx)
-
+        write_short(LAST_RECEIVED_ITEM_ADDRESS, next_item_idx + idx)
 
 async def check_locations(ctx: PSOContext) -> None:
     # Check to make sure the player hasn't beaten the game
@@ -464,6 +492,13 @@ async def check_locations(ctx: PSOContext) -> None:
     locations_checked = ctx.locations_checked.difference(ctx.checked_locations)
     if locations_checked:
         await ctx.send_msgs([{"cmd": "LocationChecks", "locations": locations_checked}])
+
+    for address in TRACKING_ADDRESSES:
+        current_value = read_short(address)
+        previous_value = TRACKING_DICT[address]
+        if previous_value != current_value:
+            print(f'{address} changing from {previous_value} to {current_value}.')
+            TRACKING_DICT[address] = current_value
 
 
 async def dolphin_sync_task(ctx: PSOContext) -> None:

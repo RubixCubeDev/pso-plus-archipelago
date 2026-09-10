@@ -4,8 +4,6 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from enum import Enum, auto
 
-from win32comext.mapi.mapitags import pidAttachReadOnlyMin
-
 from BaseClasses import ItemClassification, Location, Region
 
 from . import items
@@ -69,6 +67,7 @@ LOCATION_TABLE: dict[str, PSOLocationData] = {
     "Enter Caves 1": PSOLocationData(
         9, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FB, 1)
     ),
+    # TODO: Fix the logic here after we get the patcher working, since we had to fix this being potentially missable by adding a check to all subsequent conversations in the script
     "Scientist 1 - After Dragon": PSOLocationData(
         10, RegionName.PIONEER_2, PSOLocationType.ITEM, PSORamData(0x805127FB, 6)
     ),
